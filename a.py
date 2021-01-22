@@ -6,6 +6,7 @@ from random import randint
 from dateutil.parser import parse
 from pytz import timezone
 import pdfkit
+import re
 
 config = pdfkit.configuration(wkhtmltopdf='/usr/bin/wkhtmltopdf')
 download_folder = "new_attach"
@@ -15,6 +16,10 @@ if not os.path.exists(download_folder):
 logs_folder = "logs"
 if not os.path.exists(logs_folder):
     os.mkdir(logs_folder)
+
+def remove_img_tags(data):
+    p = re.compile(r'<img.*?>')
+    return p.sub('', data)
 
 def file_no(len):
     return str(randint((10 ** (len - 1)), 10 ** len)) + '_'
@@ -87,27 +92,32 @@ def save_attachment(msg):
             continue
         flag = 1
         filename = part.get_filename()
-        # if filename is not None and file_blacklist(filename):
-        if filename is not None:
+        if filename is not None and file_blacklist(filename):
             if not os.path.isfile(filename):
                 fp = open(os.path.join(download_folder, file_no(4) + filename), 'wb')
                 fp.write(part.get_payload(decode=True))
                 fp.close()
-            if file_blacklist(filename):
                 att_path.append(os.path.join(download_folder, file_no(4) + filename))
     if flag == 0 or filename is None or len(att_path) == 0:
         for part in msg.walk():
             if part.get_content_type() == 'text/plain':
                 filename = 'text.txt'
                 fp = open(os.path.join(download_folder, filename), 'wb')
-                fp.write(part.get_payload(decode=True))
+                data = part.get_payload(decode=True)
+                fp.write(data)
                 fp.close()
                 att_path = os.path.join(download_folder, filename)
             if part.get_content_type() == 'text/html':
                 filename = 'text.html'
                 fp = open(os.path.join(download_folder, filename), 'wb')
-                fp.write(part.get_payload(decode=True))
+                data = part.get_payload(decode=True)
+                fp.write(data)
                 fp.close()
+                with open(os.path.join(download_folder, filename), 'r') as fp:
+                    data = fp.read()
+                data = remove_img_tags(data)
+                with open(os.path.join(download_folder, filename), 'w') as fp:
+                    fp.write(data)
                 att_path = os.path.join(download_folder, filename)
                 pass
     return att_path

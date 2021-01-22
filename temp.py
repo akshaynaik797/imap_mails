@@ -6,6 +6,7 @@ from random import randint
 from dateutil.parser import parse
 from pytz import timezone
 import pdfkit
+import re
 
 config = pdfkit.configuration(wkhtmltopdf='/usr/bin/wkhtmltopdf')
 download_folder = "new_attach"
@@ -15,6 +16,10 @@ if not os.path.exists(download_folder):
 logs_folder = "logs"
 if not os.path.exists(logs_folder):
     os.mkdir(logs_folder)
+
+def remove_img_tags(data):
+    p = re.compile(r'<img.*?>')
+    return p.sub('', data)
 
 def file_no(len):
     return str(randint((10 ** (len - 1)), 10 ** len)) + '_'
@@ -80,34 +85,38 @@ def save_attachment(msg):
     att_path = []
     flag = 0
     for part in msg.walk():
-        print(part.get_content_maintype())
         if part.get_content_maintype() == 'multipart':
             continue
         if part.get('Content-Disposition') is None:
             continue
         flag = 1
         filename = part.get_filename()
-        # if filename is not None and file_blacklist(filename):
-        if filename is not None:
+        if filename is not None and file_blacklist(filename):
             if not os.path.isfile(filename):
                 fp = open(os.path.join(download_folder, file_no(4) + filename), 'wb')
                 fp.write(part.get_payload(decode=True))
                 fp.close()
-            if file_blacklist(filename):
                 att_path.append(os.path.join(download_folder, file_no(4) + filename))
     if flag == 0 or filename is None or len(att_path) == 0:
         for part in msg.walk():
             if part.get_content_type() == 'text/plain':
                 filename = 'text.txt'
                 fp = open(os.path.join(download_folder, filename), 'wb')
-                fp.write(part.get_payload(decode=True))
+                data = part.get_payload(decode=True)
+                fp.write(data)
                 fp.close()
                 att_path = os.path.join(download_folder, filename)
             if part.get_content_type() == 'text/html':
                 filename = 'text.html'
                 fp = open(os.path.join(download_folder, filename), 'wb')
-                fp.write(part.get_payload(decode=True))
+                data = part.get_payload(decode=True)
+                fp.write(data)
                 fp.close()
+                with open(os.path.join(download_folder, filename), 'r') as fp:
+                    data = fp.read()
+                data = remove_img_tags(data)
+                with open(os.path.join(download_folder, filename), 'w') as fp:
+                    fp.write(data)
                 att_path = os.path.join(download_folder, filename)
                 pass
     return att_path
@@ -118,7 +127,7 @@ imap_server.login('mediclaim.ils.howrah@gptgroup.co.in', 'Gpt@2019')
 imap_server.select(readonly=True)  # Default is `INBOX`
 # Find all emails in inbox and print out the raw email data
 # _, message_numbers_raw = imap_server.search(None, 'ALL')
-_, message_numbers_raw = imap_server.search(None, '(SINCE "22-Jan-2021")')
+_, message_numbers_raw = imap_server.search(None, '(SINCE "12-Jan-2021")')
 for message_number in message_numbers_raw[0].split():
     _, msg = imap_server.fetch(message_number, '(RFC822)')
     message = email.message_from_bytes(msg[0][1])
@@ -126,7 +135,7 @@ for message_number in message_numbers_raw[0].split():
     date = format_date(message['Date'])
     subject = message['Subject']
     mid = int(message_number)
-    print(mid, date)
+    print(mid, date, subject)
     a = save_attachment(message)
     if not isinstance(a, list):
         filename = 'new_attach/' + file_no(8) + '.pdf'
