@@ -80,18 +80,21 @@ def save_attachment(msg):
     att_path = []
     flag = 0
     for part in msg.walk():
+        print(part.get_content_maintype())
         if part.get_content_maintype() == 'multipart':
             continue
         if part.get('Content-Disposition') is None:
             continue
         flag = 1
         filename = part.get_filename()
-        if filename is not None and file_blacklist(filename):
+        # if filename is not None and file_blacklist(filename):
+        if filename is not None:
             if not os.path.isfile(filename):
                 fp = open(os.path.join(download_folder, file_no(4) + filename), 'wb')
                 fp.write(part.get_payload(decode=True))
                 fp.close()
-            att_path.append(os.path.join(download_folder, file_no(4) + filename))
+            if file_blacklist(filename):
+                att_path.append(os.path.join(download_folder, file_no(4) + filename))
     if flag == 0 or filename is None or len(att_path) == 0:
         for part in msg.walk():
             if part.get_content_type() == 'text/plain':
@@ -106,6 +109,7 @@ def save_attachment(msg):
                 fp.write(part.get_payload(decode=True))
                 fp.close()
                 att_path = os.path.join(download_folder, filename)
+                pass
     return att_path
 # Connect to inbox
 imap_server = imaplib.IMAP4_SSL(host="gptgroup.icewarpcloud.in")
@@ -114,7 +118,7 @@ imap_server.login('mediclaim.ils.howrah@gptgroup.co.in', 'Gpt@2019')
 imap_server.select(readonly=True)  # Default is `INBOX`
 # Find all emails in inbox and print out the raw email data
 # _, message_numbers_raw = imap_server.search(None, 'ALL')
-_, message_numbers_raw = imap_server.search(None, '(SINCE "20-Jan-2021")')
+_, message_numbers_raw = imap_server.search(None, '(SINCE "22-Jan-2021")')
 for message_number in message_numbers_raw[0].split():
     _, msg = imap_server.fetch(message_number, '(RFC822)')
     message = email.message_from_bytes(msg[0][1])
@@ -125,12 +129,10 @@ for message_number in message_numbers_raw[0].split():
     print(mid, date)
     a = save_attachment(message)
     if not isinstance(a, list):
-        try:
-            filename = 'new_attach/' + file_no(8) + '.pdf'
-            pdfkit.from_file(a, filename, configuration=config)
-            print(filename)
-        except:
-            pass
+        filename = 'new_attach/' + file_no(8) + '.pdf'
+        pdfkit.from_file(a, filename, configuration=config)
+        print(filename)
+
     else:
         print(a[-1])
     # print(subject, date, sender, a, sep='||')
